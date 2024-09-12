@@ -103,7 +103,7 @@ setup_zsh(){
     required_commands=("zsh" "fastfetch")
 
     # Initialize a flag to track the installation status
-    all_installed=true
+    not_all_installed=false
 
     # Function to check if a command is installed
     check_command() {
@@ -113,13 +113,13 @@ setup_zsh(){
     # Loop through each required command and check if it's installed
     for cmd in "${required_commands[@]}"; do
         if ! check_command "$cmd"; then
-            echo "${RED}$cmd is not installed.${NC}"
-            all_installed=false
+            echo -e "${RED}$cmd is not installed.${NC}"
+            not_all_installed=true
         fi
     done
 
     # Return status code based on whether all commands are installed
-    if not $all_installed; then
+    if $not_all_installed; then
         echo "One or more required commands are missing. Cancelling..."
         exit 1
     fi
@@ -275,7 +275,7 @@ install_paxs() {
 required_commands=("yay" "flatpak" "snap" "grep")
 
 # Initialize a flag to track the installation status
-all_installed=true
+not_all_installed=false
 
 # Function to check if a command is installed
 check_command() {
@@ -286,12 +286,12 @@ check_command() {
 for cmd in "${required_commands[@]}"; do
     if ! check_command "$cmd"; then
         echo "${RED}$cmd is not installed.${NC}"
-        all_installed=false
+        not_all_installed=true
     fi
 done
 
 # Return status code based on whether all commands are installed
-if not $all_installed; then
+if $not_all_installed; then
     echo "One or more required commands are missing. Cancelling..."
     exit 1
 else
