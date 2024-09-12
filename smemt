@@ -194,6 +194,11 @@ alias bottles='flatpak run com.usebottles.bottles'
 bindkey "^[[1;5C" forward-word
 bindkey "^[[1;5D" backward-word
 
+HISTSIZE=500
+HISTFILE=~/.zsh_history
+SAVEHIST=$HISTSIZE
+HISTDUP=erase
+
 fastfetch --logo small --separator-string "  " -s title:break:host:os:terminal:datetime:battery:break:colors --colors-symbol triangle
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
