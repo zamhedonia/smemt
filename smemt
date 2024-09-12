@@ -99,6 +99,31 @@ setup_zsh(){
             ;;
     esac
 
+    # Define an array of required commands
+    required_commands=("zsh" "fastfetch")
+
+    # Initialize a flag to track the installation status
+    all_installed=true
+
+    # Function to check if a command is installed
+    check_command() {
+        command -v "$1" &> /dev/null
+    }
+
+    # Loop through each required command and check if it's installed
+    for cmd in "${required_commands[@]}"; do
+        if ! check_command "$cmd"; then
+            echo "${RED}$cmd is not installed.${NC}"
+            all_installed=false
+        fi
+    done
+
+    # Return status code based on whether all commands are installed
+    if not $all_installed; then
+        echo "One or more required commands are missing. Cancelling..."
+        exit 1
+    fi
+
     # Setup zsh
     echo -e "${GREEN}Setting zsh as default shell...${NC}"
 
