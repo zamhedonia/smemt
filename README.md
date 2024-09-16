@@ -5,6 +5,7 @@
 
 Features:
 - Autosetup zsh with theme and plugins
+- Change GRUB 2 font
 - Autoinstall <a href="https://github.com/zamhedonia/paxs">paxs</a>
 - *more to come...*
 
