@@ -24,6 +24,7 @@ print_main_menu() {
 print_setup_menu() {
     echo -e "\n${GREEN_BG} Setup Menu ${NC}\n"
     echo "  1) Setup improved + themed shell (requires zsh, fastfetch)"
+    echo "  2) Change GRUB 2 Font"
     echo -e "  q) Return to Main Menu\n"
 }
 
@@ -44,12 +45,16 @@ setup() {
                 echo "Setting up zsh (requires zsh, fastfetch)..."
                 setup_zsh
                 ;;
+            2)
+                echo "Starting GRUB2 Font Changer..."
+                setup_grub_font
+                ;;
             q|Q)
                 echo -e "${GREEN}Returning to Main Menu...${NC}"
                 break
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1 or q.${NC}"
+                echo -e "${RED}Invalid option. Please select 1, 2 or q.${NC}"
                 ;;
         esac
 
@@ -84,7 +89,7 @@ apps() {
 # Function for installing zsh-script
 setup_zsh(){
     # Confirm action
-    echo -e "\n${YELLOW}This option modifies your shell environment and installs new fonts.${NC}"
+    echo -e "\n${YELLOW}This option modifies your shell environment and installs new fonts.\nA backup of your current zsh config will be created.${NC}"
     read -p "Are you sure you want to do it? (y/n): " choice
     case $choice in
         [Yy]* )
@@ -121,7 +126,7 @@ setup_zsh(){
     # Return status code based on whether all commands are installed
     if $not_all_installed; then
         echo "One or more required commands are missing. Cancelling..."
-        exit 1
+        return 1
     fi
 
     # Setup zsh
@@ -134,7 +139,7 @@ setup_zsh(){
         # Attempt to change the default shell to zsh
         if ! chsh -s "$(which zsh)"; then
             echo -e "${RED}Error: chsh command failed. Authentication may be required or the shell may not be available.${NC}"
-            exit 1
+            return 1
         fi
 
         echo -e "${GREEN}Default shell changed to zsh successfully. Please log out and log back in for the change to take effect.${NC}"
@@ -274,6 +279,125 @@ EOF
     echo -e "${GREEN}INSTALLATION FINISHED\n\nSelect MesloLGS NF as your Terminal font.\nA reboot may be required for the new default shell to take effect.\nYou will be prompted to make theming selections the next time you open your new default shell.${NC}"
 }
 
+# Function for changing GRUB2 font
+setup_grub_font(){
+    # Confirm action
+    echo -e "\n${YELLOW}This option modifies your boot loader font.\nIt's generally safe to change your GRUB font, but you could end up with an unreadable boot loader configuration if you put in weird settings.\nA backup of your current GRUB config will be created.${NC}"
+    read -p "Are you sure you want to do it? (y/n): " choice
+    case $choice in
+        [Yy]* )
+            ;;
+        [Nn]* )
+            echo "Action canceled."
+            return 1
+            ;;
+        * )
+            echo "Invalid selection. Cancelling..."
+            return 1
+            ;;
+    esac
+    # Function to check if the font file exists on the system
+    check_font_existence() {
+        font_path=$(find /usr/share/fonts /usr/local/share/fonts -name "$1" 2>/dev/null)
+        if [[ -z "$font_path" ]]; then
+            echo -e "${RED}Font $1 not found.${NC}"
+            return 1
+        else
+            echo -e "${GREEN}Font found: $font_path${NC}"
+            return 0
+        fi
+    }
+
+    # Function to create a backup of GRUB config
+    backup_grub_config() {
+        backup_file="/etc/default/grub.backup"
+        backup_count=1
+
+        while [[ -e "${backup_file}${backup_count}" ]]; do
+            ((backup_count++))
+        done
+
+        sudo cp /etc/default/grub "${backup_file}${backup_count}"
+        echo -e "${GREEN}GRUB config backed up to ${backup_file}${backup_count}${NC}"
+    }
+
+    # Function to update the GRUB configuration
+    update_grub() {
+        if [[ -d /boot/efi ]]; then
+            sudo grub-mkconfig -o /boot/efi/EFI/$(ls /boot/efi/EFI | head -n 1)/grub.cfg
+        else
+            sudo grub-mkconfig -o /boot/grub/grub.cfg
+        fi
+    }
+
+    # Function to set the new font in the GRUB config
+    set_grub_font() {
+        font_line="GRUB_FONT=$1"
+        # Check if GRUB_FONT is already set
+        if grep -q "^GRUB_FONT=" /etc/default/grub; then
+            # Replace the existing GRUB_FONT line
+            sudo sed -i "s|^GRUB_FONT=.*|$font_line|" /etc/default/grub
+            echo -e "${GREEN}Updated existing GRUB_FONT line.${NC}"
+        else
+            # Add GRUB_FONT line if it doesn't exist
+            echo "$font_line" | sudo tee -a /etc/default/grub
+            echo -e "${GREEN}Added new GRUB_FONT line.${NC}"
+        fi
+    }
+
+    # Prompt user for the font name
+    read -p "Enter the font name (Example: DejaVuSansMono.ttf): " font_name
+
+    # Check if the font exists
+    if ! check_font_existence "$font_name"; then
+        echo -e "Exiting..."
+        return 1
+    fi
+
+    # Ask user for the font size
+    read -p "Enter the preferred font size (Default: 16): " font_size
+    # Check if input is an integer
+    if ! [[ $font_size =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Selected font size is not an integer.${NC}"
+        echo "Operation canceled."
+        return 1
+    fi
+    if [[ $font_size -lt 3  ]]; then
+        echo -e "${RED}Selected font size is so tiny, it wouldn't be legible.${NC}"
+        echo "Operation canceled."
+        return 1
+    fi
+    if [[ $font_size -lt 10 || $font_size -gt 32 ]]; then
+        echo -e "${YELLOW}You have selected an extreme font size: $font_size.${NC}"
+        read -p "Are you sure you want to continue? (y/n): " confirm
+
+        if [[ $confirm != "y" ]]; then
+            echo "Operation canceled."
+            return 1
+        fi
+    fi
+
+    # Generate the GRUB-compatible font using grub-mkfont
+    output_font="/boot/grub/${font_name%.ttf}.pf2"
+    sudo grub-mkfont -s "$font_size" -o "$output_font" "$font_path"
+    if [[ $? -ne 0 ]]; then
+        echo -e "${RED}Failed to generate GRUB font. Exiting...${NC}"
+        return 1
+    fi
+
+    # Make a backup of the current GRUB config
+    backup_grub_config
+
+    # Set the new font in the GRUB config (replace if already exists)
+    set_grub_font "$output_font"
+
+    # Update the GRUB configuration
+    update_grub
+
+    echo -e "${GREEN}GRUB font successfully updated to $font_name with size $font_size.${NC}"
+    echo -e "${GREEN}Reboot to test you configuration. If it's broken revert /etc/default/grub to ${backup_file}${backup_count}${NC}."
+}
+
 # Function for installing paxs
 install_paxs() {
 # Define an array of required commands
@@ -298,10 +422,10 @@ done
 # Return status code based on whether all commands are installed
 if $not_all_installed; then
     echo "One or more required commands are missing. Cancelling..."
-    exit 1
+    return 1
 else
     yay -S paxs
-    exit 0
+    return 0
 fi
 }
 
